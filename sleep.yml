@@ -1,0 +1,14 @@
+- name: Container group test
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    sleep_seconds: 300
+  tasks:
+    - name: Show which pod the job is running in
+      ansible.builtin.debug:
+        msg: "Running in pod {{ ansible_hostname }}"
+
+    - name: Keep the pod alive
+      ansible.builtin.pause:
+        seconds: "{{ sleep_seconds }}"
