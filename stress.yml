@@ -1,0 +1,44 @@
+- name: Container group stress test
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    cpu_workers: 2
+    burn_seconds: 300
+    memory_mb: 1024
+    stress_script: |
+      import multiprocessing, sys, time
+      workers, seconds, memory_mb = (int(a) for a in sys.argv[1:4])
+      ballast = b"x" * (memory_mb * 1024 * 1024)
+      def burn(end):
+          while time.time() < end:
+              pass
+      end = time.time() + seconds
+      ctx = multiprocessing.get_context("fork")
+      procs = [ctx.Process(target=burn, args=(end,)) for _ in range(workers)]
+      for p in procs:
+          p.start()
+      for p in procs:
+          p.join()
+      print(f"held {len(ballast) // 1048576} MiB and burned {workers} CPUs for {seconds}s")
+
+  tasks:
+    - name: Show what this job is going to do
+      ansible.builtin.debug:
+        msg: "Pod {{ ansible_facts['hostname'] }}: {{ cpu_workers }} CPU workers, {{ memory_mb }} MiB, {{ burn_seconds }}s"
+
+    - name: Burn CPU and hold memory
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_facts['python']['executable'] }}"
+          - -c
+          - "{{ stress_script }}"
+          - "{{ cpu_workers }}"
+          - "{{ burn_seconds }}"
+          - "{{ memory_mb }}"
+      register: stress_result
+      changed_when: false
+
+    - name: Show the result
+      ansible.builtin.debug:
+        var: stress_result.stdout
